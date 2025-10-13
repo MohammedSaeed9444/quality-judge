@@ -3,7 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,8 +29,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { ticketStore } from "@/lib/ticketStore";
-import { Ticket, TicketReason, City, ServiceType, AgentName } from "@/types/ticket";
+import { useTickets } from "@/hooks/useTickets";
+import { TicketReason, City, ServiceType, AgentName } from "@/types/ticket";
 import { toast } from "sonner";
 
 const formSchema = z.object({
@@ -50,27 +50,27 @@ type FormValues = z.infer<typeof formSchema>;
 
 const CreateTicket = () => {
   const navigate = useNavigate();
+  const { createTicket, loading } = useTickets();
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
   });
 
-  const onSubmit = (data: FormValues) => {
-    const ticket: Ticket = {
-      id: Date.now().toString(),
+  const onSubmit = async (data: FormValues) => {
+    const ticketData = {
       tripId: data.tripId,
-      tripDate: data.tripDate,
+      tripDate: format(data.tripDate, "yyyy-MM-dd"),
       driverId: parseInt(data.driverId),
-      reason: data.reason as TicketReason,
-      city: data.city as City,
-      serviceType: data.serviceType as ServiceType,
+      reason: data.reason,
+      city: data.city,
+      serviceType: data.serviceType,
       customerPhone: data.customerPhone,
-      agentName: data.agentName as AgentName,
-      createdAt: new Date(),
+      agentName: data.agentName,
     };
 
-    ticketStore.add(ticket);
-    toast.success("Ticket created successfully!");
-    navigate("/");
+    const success = await createTicket(ticketData);
+    if (success) {
+      navigate("/");
+    }
   };
 
   return (
@@ -258,8 +258,15 @@ const CreateTicket = () => {
                 />
               </div>
 
-              <Button type="submit" className="w-full" size="lg">
-                Create Ticket
+              <Button type="submit" className="w-full" size="lg" disabled={loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating Ticket...
+                  </>
+                ) : (
+                  "Create Ticket"
+                )}
               </Button>
             </form>
           </Form>

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,18 +27,32 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ticketStore } from "@/lib/ticketStore";
+import { useTickets } from "@/hooks/useTickets";
 import { Ticket, TicketReason } from "@/types/ticket";
 import { cn } from "@/lib/utils";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Download, Loader2, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const Dashboard = () => {
-  const [tickets, setTickets] = useState<Ticket[]>(() => ticketStore.getAll());
   const [reasonFilter, setReasonFilter] = useState<string>("all");
   const [dateFilterFrom, setDateFilterFrom] = useState<Date | undefined>(undefined);
   const [dateFilterTo, setDateFilterTo] = useState<Date | undefined>(undefined);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 20;
+
+  // Use the tickets hook with API integration
+  const {
+    tickets,
+    loading,
+    error,
+    pagination,
+    loadTickets,
+    exportTickets,
+    clearError,
+  } = useTickets({
+    page: currentPage,
+    limit: ITEMS_PER_PAGE,
+  });
 
   const getPriorityOrder = (reason: TicketReason): number => {
     const order: Record<TicketReason, number> = {
@@ -63,50 +77,27 @@ const Dashboard = () => {
     }
   };
 
-  const filteredAndSortedTickets = useMemo(() => {
-    let result = [...tickets];
+  // Load tickets when filters change
+  useEffect(() => {
+    const params: any = {
+      page: currentPage,
+      limit: ITEMS_PER_PAGE,
+    };
 
-    // Filter by reason
     if (reasonFilter !== "all") {
-      result = result.filter((ticket) => ticket.reason === reasonFilter);
+      params.reason = reasonFilter;
     }
 
-    // Filter by date range
-    if (dateFilterFrom || dateFilterTo) {
-      result = result.filter((ticket) => {
-        const ticketDate = new Date(ticket.tripDate);
-        ticketDate.setHours(0, 0, 0, 0);
-        
-        if (dateFilterFrom && dateFilterTo) {
-          const from = new Date(dateFilterFrom);
-          from.setHours(0, 0, 0, 0);
-          const to = new Date(dateFilterTo);
-          to.setHours(23, 59, 59, 999);
-          return ticketDate >= from && ticketDate <= to;
-        } else if (dateFilterFrom) {
-          const from = new Date(dateFilterFrom);
-          from.setHours(0, 0, 0, 0);
-          return ticketDate >= from;
-        } else if (dateFilterTo) {
-          const to = new Date(dateFilterTo);
-          to.setHours(23, 59, 59, 999);
-          return ticketDate <= to;
-        }
-        return true;
-      });
+    if (dateFilterFrom) {
+      params.start_date = format(dateFilterFrom, "yyyy-MM-dd");
     }
 
-    // Sort by creation date (newest first)
-    result.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    if (dateFilterTo) {
+      params.end_date = format(dateFilterTo, "yyyy-MM-dd");
+    }
 
-    return result;
-  }, [tickets, reasonFilter, dateFilterFrom, dateFilterTo]);
-
-  const totalPages = Math.ceil(filteredAndSortedTickets.length / ITEMS_PER_PAGE);
-  const paginatedTickets = useMemo(() => {
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredAndSortedTickets.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-  }, [filteredAndSortedTickets, currentPage]);
+    loadTickets(params);
+  }, [reasonFilter, dateFilterFrom, dateFilterTo, currentPage, loadTickets]);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -133,6 +124,24 @@ const Dashboard = () => {
     setCurrentPage(1);
   };
 
+  const handleExportToCSV = () => {
+    const params: any = {};
+
+    if (reasonFilter !== "all") {
+      params.reason = reasonFilter;
+    }
+
+    if (dateFilterFrom) {
+      params.start_date = format(dateFilterFrom, "yyyy-MM-dd");
+    }
+
+    if (dateFilterTo) {
+      params.end_date = format(dateFilterTo, "yyyy-MM-dd");
+    }
+
+    exportTickets(params);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -141,7 +150,7 @@ const Dashboard = () => {
           <p className="text-muted-foreground mt-1">View and manage all support tickets</p>
         </div>
         <Badge variant="secondary" className="text-base px-4 py-2">
-          {filteredAndSortedTickets.length} {filteredAndSortedTickets.length === 1 ? 'Ticket' : 'Tickets'}
+          {pagination.totalTickets} {pagination.totalTickets === 1 ? 'Ticket' : 'Tickets'}
         </Badge>
       </div>
 
@@ -221,11 +230,36 @@ const Dashboard = () => {
                   Clear Dates
                 </Button>
               )}
+              <Button
+                onClick={handleExportToCSV}
+                disabled={loading || pagination.totalTickets === 0}
+                className="flex items-center gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Export CSV
+              </Button>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          {filteredAndSortedTickets.length === 0 ? (
+          {error && (
+            <Alert className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {error}
+                <Button variant="outline" size="sm" className="ml-2" onClick={clearError}>
+                  Dismiss
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+          
+          {loading ? (
+            <div className="text-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+              <p className="text-muted-foreground text-lg">Loading tickets...</p>
+            </div>
+          ) : tickets.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-muted-foreground text-lg">No tickets found</p>
               <p className="text-sm text-muted-foreground mt-2">Create your first ticket to get started</p>
@@ -248,7 +282,7 @@ const Dashboard = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedTickets.map((ticket) => (
+                  {tickets.map((ticket) => (
                     <TableRow key={ticket.id} className="hover:bg-muted/30 transition-colors">
                       <TableCell className="font-mono text-sm">{ticket.id.slice(-6)}</TableCell>
                       <TableCell className="font-medium">{ticket.tripId}</TableCell>
@@ -274,32 +308,32 @@ const Dashboard = () => {
               </Table>
             </div>
           )}
-          {filteredAndSortedTickets.length > 0 && (
+          {tickets.length > 0 && (
             <div className="mt-6 flex items-center justify-between">
               <p className="text-sm text-muted-foreground">
-                Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredAndSortedTickets.length)} of {filteredAndSortedTickets.length} tickets
+                Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.totalTickets)} of {pagination.totalTickets} tickets
               </p>
               <Pagination>
                 <PaginationContent>
                   <PaginationItem>
                     <PaginationPrevious
-                      onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+                      onClick={() => handlePageChange(Math.max(1, pagination.page - 1))}
                       className={cn(
-                        currentPage === 1 && "pointer-events-none opacity-50",
+                        pagination.page === 1 && "pointer-events-none opacity-50",
                         "cursor-pointer"
                       )}
                     />
                   </PaginationItem>
                   <PaginationItem>
                     <span className="text-sm px-4">
-                      Page {currentPage} of {totalPages}
+                      Page {pagination.page} of {pagination.totalPages}
                     </span>
                   </PaginationItem>
                   <PaginationItem>
                     <PaginationNext
-                      onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
+                      onClick={() => handlePageChange(Math.min(pagination.totalPages, pagination.page + 1))}
                       className={cn(
-                        currentPage === totalPages && "pointer-events-none opacity-50",
+                        pagination.page === pagination.totalPages && "pointer-events-none opacity-50",
                         "cursor-pointer"
                       )}
                     />
