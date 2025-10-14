@@ -1,0 +1,19 @@
+# Ignore frontend files when deploying backend
+src/
+public/
+index.html
+vite.config.ts
+tailwind.config.ts
+postcss.config.js
+components.json
+eslint.config.js
+tsconfig.app.json
+tsconfig.node.json
+vite-env.d.ts
+
+# Ignore root package files that conflict with backend
+package.json
+package-lock.json
+bun.lockb
+
+# Keep only backend directory for deployment
