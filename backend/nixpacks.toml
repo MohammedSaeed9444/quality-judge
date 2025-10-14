@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["nodejs-18_x", "npm-9_x"]
+nixPkgs = ["nodejs-18_x"]
 
 [phases.install]
 cmds = ["npm install"]
@@ -9,6 +9,3 @@ cmds = ["npm run build"]
 
 [start]
 cmd = "npm start"
-
-[variables]
-NPM_CONFIG_PACKAGE_LOCK_ONLY = "true"
