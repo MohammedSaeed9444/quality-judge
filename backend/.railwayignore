@@ -1,0 +1,37 @@
+# Ignore development files
+.env
+.env.local
+.env.development
+.env.test
+*.log
+logs/
+*.pid
+*.seed
+*.pid.lock
+
+# Ignore test files
+test/
+tests/
+__tests__/
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+
+# Ignore documentation
+*.md
+docs/
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore build artifacts that will be regenerated
+dist/
+build/
